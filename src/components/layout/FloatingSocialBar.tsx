@@ -79,7 +79,7 @@ export const FloatingSocialBar: React.FC = () => {
 
   return (
     <div 
-      className="fixed bottom-6 ltr:left-5 rtl:right-5 z-40 flex flex-col items-end rtl:items-start gap-3 pointer-events-auto"
+      className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] ltr:left-5 rtl:right-5 z-40 flex flex-col items-end rtl:items-start gap-3 pointer-events-auto"
       style={{ isolation: 'isolate' }}
     >
       {/* Expanded Animated Social Panel */}

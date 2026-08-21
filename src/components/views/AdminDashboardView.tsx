@@ -38,7 +38,9 @@ import {
   Gift,
   Truck,
   UploadCloud,
-  Globe
+  Globe,
+  Megaphone,
+  ExternalLink
 } from 'lucide-react';
 import { useShop } from '../../context/ShopContext';
 import { Product, ProductCategory, StoreBranch, StoreCategoryItem, StoreSettings, OrderStatus, ProductColor } from '../../types';
@@ -84,7 +86,10 @@ export const AdminDashboardView: React.FC = () => {
     isCloudSyncing,
     lastSyncedAt,
     syncAllToCloud,
-    showToast
+    showToast,
+    navigateToProduct,
+    getProductShareUrl,
+    copyProductShareUrl
   } = useShop();
 
   const isAr = language === 'ar';
@@ -320,14 +325,13 @@ export const AdminDashboardView: React.FC = () => {
           <p className="text-xs text-white/70 font-medium mb-6">
             {isAr 
               ? 'الوصول محمي ومخصص فقط لإدارة المتجر والمنتجات والطلبات.' 
-              : 'Authorized personnel only. Please enter your secret admin PIN.'}
+              : 'Authorized personnel only. Please enter your secret admin password.'}
           </p>
 
           <form onSubmit={handlePinSubmit} className="space-y-4">
             <div className="space-y-1.5 text-right">
               <label className="text-xs font-black text-white/80 flex items-center justify-between">
-                <span>{isAr ? 'رمز الدخول السري (PIN)' : 'Admin Security PIN'}</span>
-                <span className="text-[10px] text-[#FDE047]/90 font-mono">الافتراضي: 8899</span>
+                <span>{isAr ? 'كلمة مرور لوحة التحكم' : 'Admin Access Password'}</span>
               </label>
               <div className="relative">
                 <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
@@ -338,10 +342,10 @@ export const AdminDashboardView: React.FC = () => {
                     setEnteredPin(e.target.value);
                     if (pinError) setPinError(false);
                   }}
-                  placeholder="••••"
-                  maxLength={10}
+                  placeholder="••••••••••••"
+                  maxLength={64}
                   autoFocus
-                  className="w-full bg-black/50 border border-white/25 rounded-2xl py-3.5 pr-10 pl-4 text-center text-xl font-mono tracking-widest text-white placeholder:text-white/30 focus:outline-none focus:border-[#FDE047] focus:ring-2 focus:ring-[#FDE047]/40 transition-all"
+                  className="w-full bg-black/50 border border-white/25 rounded-2xl py-3.5 pr-10 pl-4 text-center text-lg font-mono tracking-wider text-white placeholder:text-white/30 focus:outline-none focus:border-[#FDE047] focus:ring-2 focus:ring-[#FDE047]/40 transition-all"
                 />
               </div>
             </div>
@@ -349,7 +353,7 @@ export const AdminDashboardView: React.FC = () => {
             {pinError && (
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#DC2626]/20 border border-[#DC2626]/40 text-[#FECDD3] text-xs font-bold animate-shake">
                 <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
-                <span>{isAr ? 'رمز المرور غير صحيح، يرجى المحاولة مجدداً.' : 'Invalid PIN entered. Please try again.'}</span>
+                <span>{isAr ? 'كلمة المرور غير صحيحة، يرجى المحاولة مجدداً.' : 'Invalid password entered. Please try again.'}</span>
               </div>
             )}
 
@@ -982,6 +986,28 @@ export const AdminDashboardView: React.FC = () => {
                             {/* Action Buttons */}
                             <td className="py-3.5 px-4 text-center">
                               <div className="flex items-center justify-center gap-1.5">
+                                {/* Facebook Ad Link Copy Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => copyProductShareUrl(product.id, isAr ? product.nameAr : product.nameEn)}
+                                  className="w-8 h-8 rounded-xl bg-[#1877F2]/20 hover:bg-[#1877F2] text-[#93C5FD] hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-[#1877F2]/40"
+                                  title={isAr ? `نسخ رابط إعلان فيسبوك (/product?id=${product.id})` : `Copy Facebook Ad URL (/product?id=${product.id})`}
+                                >
+                                  <Megaphone className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Preview Product Page */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigateToProduct(product);
+                                  }}
+                                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white text-white hover:text-[#4C0519] flex items-center justify-center transition-colors cursor-pointer border border-white/20"
+                                  title={isAr ? 'فتح ومعاينة صفحة المنتج' : 'View Product Page'}
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+
                                 {/* Edit Button */}
                                 <button
                                   type="button"
@@ -2299,20 +2325,21 @@ export const AdminDashboardView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Admin PIN Change */}
+                {/* Admin Password Change */}
                 <div className="p-4 rounded-2xl bg-[#DC2626]/10 border border-[#DC2626]/30 space-y-2">
                   <label className="text-xs font-black text-[#FECDD3] flex items-center gap-1.5">
                     <KeyRound className="w-3.5 h-3.5 text-[#DC2626]" />
-                    <span>{isAr ? 'تغيير رمز الأمان (Admin PIN)' : 'Change Admin Access PIN'}</span>
+                    <span>{isAr ? 'تغيير كلمة مرور لوحة التحكم (Admin Password)' : 'Change Admin Access Password'}</span>
                   </label>
                   <input
                     type="text"
-                    value={settingsForm.adminPin}
+                    value={settingsForm.adminPin || ''}
                     onChange={(e) => setSettingsForm({ ...settingsForm, adminPin: e.target.value })}
-                    className="w-full sm:w-48 bg-black/60 border border-white/30 rounded-xl py-2 px-3 text-center text-sm font-mono text-white"
+                    placeholder="ronystore123"
+                    className="w-full sm:w-64 bg-black/60 border border-white/30 rounded-xl py-2 px-3 text-center text-sm font-mono text-white focus:outline-none focus:border-[#FDE047]"
                   />
                   <p className="text-[10px] text-white/60">
-                    {isAr ? 'احفظ هذا الرمز جيداً حيث ستستخدمه لفتح لوحة التحكم.' : 'Store this PIN securely for admin access.'}
+                    {isAr ? 'احفظ كلمة المرور هذه جيداً حيث ستستخدمها للدخول إلى لوحة التحكم.' : 'Store this password securely for dashboard access.'}
                   </p>
                 </div>
               </div>
@@ -2537,6 +2564,46 @@ export const AdminDashboardView: React.FC = () => {
 
             {/* Form Fields */}
             <div className="space-y-4 text-xs">
+              {/* Facebook Ad Direct URL Box */}
+              {editingProduct.id && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1877F2]/20 via-[#1877F2]/10 to-transparent border border-[#1877F2]/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-[#1877F2] text-white flex items-center justify-center shrink-0 shadow">
+                      <Megaphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-white">{isAr ? 'رابط إعلان فيسبوك المباشر للمنتج:' : 'Direct Facebook Ad Link:'}</span>
+                        <span className="text-[10px] bg-[#1877F2]/40 text-[#BFDBFE] font-mono px-2 py-0.5 rounded-full border border-[#1877F2]/50">
+                          /product?id={editingProduct.id}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-white/70 mt-0.5">
+                        {isAr ? 'هذا هو الرابط المستقل لوضعه في إعلانات ممولة على فيسبوك وإنستجرام' : 'Use this exact link in sponsored ads'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => copyProductShareUrl(editingProduct.id, isAr ? editingProduct.nameAr : editingProduct.nameEn)}
+                      className="py-1.5 px-3 rounded-xl bg-white hover:bg-[#FFF5F5] text-[#1877F2] font-black text-xs flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'نسخ الرابط' : 'Copy'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigateToProduct(editingProduct)}
+                      className="py-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 border border-white/20 transition-colors cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'معاينة' : 'Preview'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Product ID & Category */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">

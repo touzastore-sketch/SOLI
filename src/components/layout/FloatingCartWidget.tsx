@@ -49,7 +49,7 @@ export const FloatingCartWidget: React.FC = () => {
   return (
     <aside
       aria-label={isAr ? 'حقيبة التسوق العائمة' : 'Floating shopping cart'}
-      className={`fixed bottom-6 ltr:right-5 rtl:left-5 z-40 flex flex-col items-start rtl:items-end gap-2.5 pointer-events-auto transition-all duration-300 ${
+      className={`fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] ltr:right-5 rtl:left-5 z-40 flex flex-col items-start rtl:items-end gap-2.5 pointer-events-auto transition-all duration-300 ${
         isBouncing ? 'scale-110' : 'scale-100'
       }`}
       style={{ isolation: 'isolate' }}

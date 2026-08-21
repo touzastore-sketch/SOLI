@@ -62,6 +62,12 @@ export interface StoreSettings {
   discreetPackagingNoteEn: string;
   adminPin: string;
 
+  // Cloudinary CDN & Media Configuration
+  cloudinaryCloudName?: string;
+  cloudinaryUploadPreset?: string;
+  cloudinaryFolder?: string;
+  cloudinaryAutoOptimize?: boolean;
+
   // Hero Section Texts
   heroBadgeAr?: string;
   heroBadgeEn?: string;

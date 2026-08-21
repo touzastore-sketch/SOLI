@@ -20,7 +20,11 @@ import {
   CheckCircle2,
   MessageCircle,
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  Copy,
+  Link as LinkIcon,
+  ExternalLink,
+  Megaphone
 } from 'lucide-react';
 import { useShop } from '../../context/ShopContext';
 import { SizeGuideModal } from '../layout/SizeGuideModal';
@@ -39,7 +43,9 @@ export const ProductDetailView: React.FC = () => {
     isInWishlist,
     showToast,
     setIsStylistOpen,
-    navigateToProduct
+    navigateToProduct,
+    getProductShareUrl,
+    copyProductShareUrl
   } = useShop();
 
   const isAr = language === 'ar';
@@ -413,6 +419,53 @@ export const ProductDetailView: React.FC = () => {
                 >
                   <Share2 className="w-4 h-4" />
                 </button>
+              </div>
+
+              {/* Dedicated Facebook Ad & Social Direct Campaign Box */}
+              <div className="p-4 bg-gradient-to-r from-[#1877F2]/15 via-white/5 to-[#1877F2]/10 border border-[#1877F2]/40 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-white font-black text-xs">
+                    <Megaphone className="w-4 h-4 text-[#38BDF8]" />
+                    <span>{isAr ? 'رابط إعلان فيسبوك المباشر للمنتج' : 'Direct Facebook Ad Campaign Link'}</span>
+                  </div>
+                  <span className="text-[10px] bg-[#1877F2]/30 text-[#93C5FD] font-mono px-2 py-0.5 rounded-full border border-[#1877F2]/50">
+                    /product?id={product.id}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-black/60 p-2 rounded-xl border border-white/15">
+                  <input
+                    type="text"
+                    readOnly
+                    value={getProductShareUrl(product.id)}
+                    className="w-full bg-transparent text-[11px] font-mono text-white/90 focus:outline-none select-all px-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyProductShareUrl(product.id, isAr ? product.nameAr : product.nameEn)}
+                    className="py-1.5 px-3 rounded-lg bg-white hover:bg-[#FFF5F5] text-[#1877F2] font-black text-[11px] flex items-center gap-1.5 shrink-0 transition-transform active:scale-95 cursor-pointer shadow"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'نسخ الرابط' : 'Copy'}</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1 text-[10px]">
+                  <p className="text-white/70">
+                    {isAr 
+                      ? '🎯 استخدم هذا الرابط في إعلاناتك على فيسبوك وإنستجرام لنقل العميل مباشرة لصفحة هذا المنتج!' 
+                      : 'Use this URL in Facebook/Instagram Ads to direct shoppers directly to this product!'}
+                  </p>
+                  <a
+                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getProductShareUrl(product.id))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#93C5FD] hover:text-white flex items-center gap-1 shrink-0 font-bold underline cursor-pointer"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>{isAr ? 'نشر فيسبوك' : 'Share FB'}</span>
+                  </a>
+                </div>
               </div>
 
               {/* Discreet Shipping Promise Highlight Card */}

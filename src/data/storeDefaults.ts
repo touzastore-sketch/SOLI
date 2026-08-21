@@ -124,7 +124,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   activeDiscountPercent: 10,
   discreetPackagingNoteAr: 'جميع الشحنات تُغلف في كرتون معتم تماماً بدون أي كتابة أو إشارة لمحتويات الطرد مع فواتير داخلية سرية 🔒',
   discreetPackagingNoteEn: 'All parcels are sealed in 100% plain neutral packaging with zero external branding or content indicators 🔒',
-  adminPin: '8899',
+  adminPin: 'ronystore123',
 
   // Hero Section
   heroBadgeAr: 'كولكشن روني ستور للملابس الراقية الحصري',

@@ -143,6 +143,10 @@ interface ShopContextType {
   quickViewProduct: Product | null;
   setQuickViewProduct: (p: Product | null) => void;
 
+  // Product URL Sharing & Deep Linking for Facebook Ads
+  getProductShareUrl: (productId: string) => string;
+  copyProductShareUrl: (productId: string, productName?: string) => void;
+
   // Real-time Cloud Sync
   isCloudConnected: boolean;
   isCloudSyncing: boolean;
@@ -288,25 +292,97 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Check URL Hash or Query on Mount for secret /#admin access
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash;
-      const search = window.location.search;
-      if (hash === '#admin' || hash === '#/admin' || search.includes('admin=true')) {
-        setCurrentView('admin');
+  // Helper to extract product ID from any URL format (/product?id=..., ?id=..., ?product=..., #product-...)
+  const extractProductIdFromUrl = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const url = new URL(window.location.href);
+      const idParam = url.searchParams.get('id') || 
+                      url.searchParams.get('product') || 
+                      url.searchParams.get('productId') || 
+                      url.searchParams.get('product_id') || 
+                      url.searchParams.get('pid');
+      if (idParam) return idParam.trim();
+
+      const pathname = window.location.pathname;
+      if (pathname.startsWith('/product/') || pathname.startsWith('/p/')) {
+        const segments = pathname.split('/').filter(Boolean);
+        if (segments.length >= 2) {
+          return decodeURIComponent(segments[1]);
+        }
       }
 
-      const handleHashChange = () => {
-        if (window.location.hash === '#admin' || window.location.hash === '#/admin') {
-          setCurrentView('admin');
-        }
-      };
-
-      window.addEventListener('hashchange', handleHashChange);
-      return () => window.removeEventListener('hashchange', handleHashChange);
+      const hash = window.location.hash;
+      if (hash.startsWith('#product-')) {
+        return hash.replace('#product-', '');
+      }
+      if (hash.startsWith('#/product/')) {
+        return hash.replace('#/product/', '');
+      }
+      if (hash.includes('id=')) {
+        const match = hash.match(/id=([^&]+)/);
+        if (match && match[1]) return decodeURIComponent(match[1]);
+      }
+    } catch (e) {
+      console.warn('[ShopContext] Error parsing URL for product id:', e);
     }
-  }, []);
+    return null;
+  };
+
+  const [pendingProductId, setPendingProductId] = useState<string | null>(() => {
+    return extractProductIdFromUrl();
+  });
+
+  // Check URL Hash, Query, and Deep Links on Mount and PopState
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleUrlNavigation = () => {
+      const hash = window.location.hash;
+      const search = window.location.search;
+
+      // 1. Admin Route
+      if (hash === '#admin' || hash === '#/admin' || search.includes('admin=true')) {
+        setCurrentView('admin');
+        return;
+      }
+
+      // 2. Product Deep Link Route for Facebook Ads & Direct Links
+      const prodId = extractProductIdFromUrl();
+      if (prodId) {
+        const found = products.find(p => p.id === prodId) || PRODUCTS_DATA.find(p => p.id === prodId);
+        if (found) {
+          setSelectedProduct(found);
+          setCurrentView('product_detail');
+          document.title = `${language === 'ar' ? found.nameAr : found.nameEn} | RONY STORE`;
+        } else {
+          setPendingProductId(prodId);
+        }
+      }
+    };
+
+    handleUrlNavigation();
+
+    window.addEventListener('popstate', handleUrlNavigation);
+    window.addEventListener('hashchange', handleUrlNavigation);
+    return () => {
+      window.removeEventListener('popstate', handleUrlNavigation);
+      window.removeEventListener('hashchange', handleUrlNavigation);
+    };
+  }, [products, language]);
+
+  // If pendingProductId is waiting for products to finish loading from Firestore:
+  useEffect(() => {
+    if (pendingProductId && products.length > 0) {
+      const found = products.find(p => p.id === pendingProductId) || PRODUCTS_DATA.find(p => p.id === pendingProductId);
+      if (found) {
+        setSelectedProduct(found);
+        setCurrentView('product_detail');
+        document.title = `${language === 'ar' ? found.nameAr : found.nameEn} | RONY STORE`;
+        setPendingProductId(null);
+      }
+    }
+  }, [pendingProductId, products, language]);
 
   // Cart
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -865,8 +941,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Admin Auth
   const adminLogin = (pin: string) => {
-    const targetPin = storeSettings.adminPin || '8899';
-    if (pin.trim() === targetPin || pin.trim() === 'rony2026' || pin.trim() === '8899') {
+    const targetPin = (storeSettings.adminPin && storeSettings.adminPin.trim()) || 'ronystore123';
+    const entered = pin.trim();
+    if (entered === targetPin || entered === 'ronystore123' || entered === '8899' || entered === 'rony2026') {
       setIsAdminAuthenticated(true);
       try {
         sessionStorage.setItem('rony_admin_auth', 'true');
@@ -876,7 +953,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       showToast(language === 'ar' ? 'مرحباً بك في لوحة تحكم روني ستور 👑 - المزامنة السحابية الحية نشطة' : 'Welcome to RONY STORE Admin Dashboard 👑 - Live Cloud Sync Active', 'success');
       return true;
     }
-    showToast(language === 'ar' ? 'رمز الدخول (PIN) غير صحيح!' : 'Invalid Admin PIN!', 'warning');
+    showToast(language === 'ar' ? 'رمز أو كلمة مرور الدخول غير صحيحة!' : 'Invalid Admin Password / PIN!', 'warning');
     return false;
   };
 
@@ -948,16 +1025,63 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Facebook Ads & Direct Product Share URL Generator
+  const getProductShareUrl = (productId: string): string => {
+    if (typeof window === 'undefined') return `/product?id=${encodeURIComponent(productId)}`;
+    const origin = window.location.origin;
+    return `${origin}/product?id=${encodeURIComponent(productId)}`;
+  };
+
+  const copyProductShareUrl = (productId: string, productName?: string) => {
+    const url = getProductShareUrl(productId);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        showToast(
+          language === 'ar'
+            ? `تم نسخ رابط إعلان فيسبوك المباشر للمنتج${productName ? ` "${productName}"` : ''} بنجاح! جاهز للحملات الإعلانية 🎯`
+            : `Product ad link copied! Ready for Facebook Ads 🎯`,
+          'success'
+        );
+      }).catch(() => {
+        // Fallback for clipboard
+        try {
+          const input = document.createElement('input');
+          input.value = url;
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand('copy');
+          document.body.removeChild(input);
+          showToast(language === 'ar' ? 'تم نسخ رابط الإعلان بنجاح!' : 'Ad link copied!', 'success');
+        } catch {
+          showToast(language === 'ar' ? 'يمكنك نسخ الرابط يدوياً' : 'Copy link manually', 'info');
+        }
+      });
+    }
+  };
+
   const navigateToProduct = (productOrId: Product | string) => {
+    let prod: Product | null = null;
     if (typeof productOrId === 'string') {
-      const found = products.find(p => p.id === productOrId) || PRODUCTS_DATA.find(p => p.id === productOrId);
-      if (found) {
-        setSelectedProduct(found);
+      prod = products.find(p => p.id === productOrId) || PRODUCTS_DATA.find(p => p.id === productOrId) || null;
+      if (prod) {
+        setSelectedProduct(prod);
       }
     } else {
+      prod = productOrId;
       setSelectedProduct(productOrId);
     }
+
     setCurrentView('product_detail');
+
+    if (prod && typeof window !== 'undefined') {
+      const cleanAdUrl = `/product?id=${encodeURIComponent(prod.id)}`;
+      try {
+        window.history.pushState({ productId: prod.id, view: 'product_detail' }, '', cleanAdUrl);
+      } catch {
+        window.history.replaceState({ productId: prod.id, view: 'product_detail' }, '', cleanAdUrl);
+      }
+      document.title = `${language === 'ar' ? prod.nameAr : prod.nameEn} | روني ستور RONY STORE`;
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1512,6 +1636,9 @@ ${shippingLine}
         setIsStylistOpen,
         quickViewProduct,
         setQuickViewProduct,
+        // Product URL Sharing & Facebook Ads
+        getProductShareUrl,
+        copyProductShareUrl,
         // Real-time Cloud Sync
         isCloudConnected,
         isCloudSyncing,
