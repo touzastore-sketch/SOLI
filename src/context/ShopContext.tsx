@@ -21,7 +21,9 @@ import {
   signInWithPopup, 
   fbSignOut, 
   handleFirestoreError, 
-  OperationType 
+  OperationType,
+  cleanForFirestore,
+  firestoreDatabaseInfo
 } from '../firebase';
 import { 
   collection, 
@@ -401,18 +403,42 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // 1. Real-time Products Sync
       const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-        const remoteProds: Product[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data() as Product;
-          if (data && data.id) {
-            remoteProds.push(data);
+        if (!snapshot.empty) {
+          const remoteProds: Product[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as Product;
+            if (data && data.id) {
+              remoteProds.push(data);
+            }
+          });
+          setProducts(remoteProds);
+          setLastSyncedAt(new Date());
+          setIsCloudConnected(true);
+        } else {
+          // If remote Firestore products is currently empty, seed initial products
+          const initialProds = (() => {
+            try {
+              const saved = localStorage.getItem('rony_store_products');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+              }
+            } catch (e) {}
+            return PRODUCTS_DATA;
+          })();
+
+          if (initialProds && initialProds.length > 0) {
+            initialProds.forEach((p) => {
+              setDoc(doc(db, 'products', p.id), cleanForFirestore(p), { merge: true }).catch((err) => {
+                console.warn('[ShopContext] Error auto-seeding product to Firestore:', err);
+              });
+            });
+            setProducts(initialProds);
+            setIsCloudConnected(true);
           }
-        });
-        setProducts(remoteProds);
-        setLastSyncedAt(new Date());
-        setIsCloudConnected(true);
+        }
       }, (err) => {
-        console.warn('[ShopContext] Real-time products listener:', err.message);
+        console.warn('[ShopContext] Real-time products listener error:', err.message);
       });
       unsubs.push(unsubProducts);
 
@@ -434,8 +460,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           // Auto-seed initial categories to Firestore
           DEFAULT_CATEGORIES.forEach(c => {
-            setDoc(doc(db, 'categories', c.id), c, { merge: true }).catch(() => {});
+            setDoc(doc(db, 'categories', c.id), cleanForFirestore(c), { merge: true }).catch(() => {});
           });
+          setCategories(DEFAULT_CATEGORIES);
         }
       }, (err) => {
         console.warn('[ShopContext] Real-time categories listener:', err.message);
@@ -460,8 +487,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           // Auto-seed initial branches to Firestore
           DEFAULT_BRANCHES.forEach(b => {
-            setDoc(doc(db, 'branches', b.id), b, { merge: true }).catch(() => {});
+            setDoc(doc(db, 'branches', b.id), cleanForFirestore(b), { merge: true }).catch(() => {});
           });
+          setBranches(DEFAULT_BRANCHES);
         }
       }, (err) => {
         console.warn('[ShopContext] Real-time branches listener:', err.message);
@@ -479,7 +507,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } else {
           // Auto-seed initial settings to Firestore
-          setDoc(doc(db, 'storeSettings', 'config'), DEFAULT_STORE_SETTINGS, { merge: true }).catch(() => {});
+          setDoc(doc(db, 'storeSettings', 'config'), cleanForFirestore(DEFAULT_STORE_SETTINGS), { merge: true }).catch(() => {});
         }
       }, (err) => {
         console.warn('[ShopContext] Real-time settings listener:', err.message);
@@ -570,32 +598,32 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsCloudSyncing(true);
     try {
       // 1. Sync Settings
-      await setDoc(doc(db, 'storeSettings', 'config'), storeSettings, { merge: true });
+      await setDoc(doc(db, 'storeSettings', 'config'), cleanForFirestore(storeSettings), { merge: true });
 
       // 2. Sync Products
-      const prodPromises = products.map(p => setDoc(doc(db, 'products', p.id), p, { merge: true }));
+      const prodPromises = products.map(p => setDoc(doc(db, 'products', p.id), cleanForFirestore(p), { merge: true }));
       
       // 3. Sync Categories
-      const catPromises = categories.map(c => setDoc(doc(db, 'categories', c.id), c, { merge: true }));
+      const catPromises = categories.map(c => setDoc(doc(db, 'categories', c.id), cleanForFirestore(c), { merge: true }));
 
       // 4. Sync Branches
-      const branchPromises = branches.map(b => setDoc(doc(db, 'branches', b.id), b, { merge: true }));
+      const branchPromises = branches.map(b => setDoc(doc(db, 'branches', b.id), cleanForFirestore(b), { merge: true }));
 
       // 5. Sync Orders
-      const orderPromises = orders.map(o => setDoc(doc(db, 'orders', o.id), o, { merge: true }));
+      const orderPromises = orders.map(o => setDoc(doc(db, 'orders', o.id), cleanForFirestore(o), { merge: true }));
 
       await Promise.all([...prodPromises, ...catPromises, ...branchPromises, ...orderPromises]);
       setLastSyncedAt(new Date());
       setIsCloudConnected(true);
       showToast(
         language === 'ar' 
-          ? 'تمت مزامنة كامل بيانات المتجر مع السحابة فورياً! تظهر الآن على جميع الأجهزة' 
-          : 'All store data synced to cloud in real-time across all devices!', 
+          ? 'تم حفظ ومزامنة جميع البيانات في قاعدة بيانات Firestore السحابية بنجاح ✨' 
+          : 'All store data saved and synced to Firestore cloud database successfully ✨', 
         'success'
       );
     } catch (err: unknown) {
-      console.warn('[ShopContext] Sync all to cloud warning:', err);
-      showToast(language === 'ar' ? 'تم الحفظ محلياً وجاري المزامنة مع السحابة' : 'Saved locally, syncing in background', 'info');
+      console.error('[ShopContext] Sync all to cloud error:', err);
+      showToast(language === 'ar' ? 'تعذر إتمام المزامنة مع السحابة، تم الحفظ محلياً' : 'Cloud sync error, saved locally', 'warning');
     } finally {
       setIsCloudSyncing(false);
     }
@@ -603,39 +631,60 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Product CRUD with Instant Cloud Write & Real-Time Sync
   const addProduct = async (newProd: Product) => {
-    setProducts(prev => [newProd, ...prev]);
-    showToast(language === 'ar' ? `تمت إضافة المنتج "${newProd.nameAr}" بنجاح` : `Product "${newProd.nameEn}" added`, 'success');
+    const cleaned = cleanForFirestore(newProd);
+    setProducts(prev => [cleaned, ...prev]);
+    showToast(
+      language === 'ar' 
+        ? `تمت إضافة وحفظ المنتج "${cleaned.nameAr}" في قاعدة البيانات السحابية الحقيقية بنجاح ✨` 
+        : `Product "${cleaned.nameEn}" saved to real Firestore cloud database ✨`, 
+      'success'
+    );
     try {
-      await setDoc(doc(db, 'products', newProd.id), newProd);
+      await setDoc(doc(db, 'products', cleaned.id), cleaned, { merge: true });
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] addProduct Firestore write warning:', err);
+      console.error('[ShopContext] addProduct Firestore write error:', err);
+      showToast(language === 'ar' ? 'تنبيه: حدث خطأ أثناء الحفظ في Firestore' : 'Warning: Error writing to Firestore', 'warning');
     }
   };
 
   const updateProduct = async (updatedProd: Product) => {
-    setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
-    if (selectedProduct && selectedProduct.id === updatedProd.id) {
-      setSelectedProduct(updatedProd);
+    const cleaned = cleanForFirestore(updatedProd);
+    setProducts(prev => prev.map(p => p.id === cleaned.id ? cleaned : p));
+    if (selectedProduct && selectedProduct.id === cleaned.id) {
+      setSelectedProduct(cleaned);
     }
-    showToast(language === 'ar' ? `تم حفظ وتحديث "${updatedProd.nameAr}" على جميع الأجهزة` : `Product "${updatedProd.nameEn}" updated across all devices`, 'success');
+    showToast(
+      language === 'ar' 
+        ? `تم تحديث وحفظ "${cleaned.nameAr}" في قاعدة البيانات الحقيقية فورياً ✨` 
+        : `Product "${cleaned.nameEn}" updated in live Firestore database ✨`, 
+      'success'
+    );
     try {
-      await setDoc(doc(db, 'products', updatedProd.id), updatedProd, { merge: true });
+      await setDoc(doc(db, 'products', cleaned.id), cleaned, { merge: true });
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] updateProduct Firestore write warning:', err);
+      console.error('[ShopContext] updateProduct Firestore write error:', err);
+      showToast(language === 'ar' ? 'تنبيه: حدث خطأ أثناء التحديث في Firestore' : 'Warning: Error updating in Firestore', 'warning');
     }
   };
 
   const deleteProduct = async (id: string) => {
     const target = products.find(p => p.id === id);
     setProducts(prev => prev.filter(p => p.id !== id));
-    showToast(language === 'ar' ? `تم حذف المنتج "${target?.nameAr || id}" بنجاح` : `Product deleted`, 'info');
+    showToast(
+      language === 'ar' 
+        ? `تم حذف المنتج "${target?.nameAr || id}" من قاعدة البيانات الحقيقية 🗑️` 
+        : `Product deleted from Firestore database`, 
+      'info'
+    );
     try {
       await deleteDoc(doc(db, 'products', id));
       setLastSyncedAt(new Date());
     } catch (err) {
-      console.warn('[ShopContext] deleteProduct Firestore delete warning:', err);
+      console.error('[ShopContext] deleteProduct Firestore delete error:', err);
     }
   };
 
@@ -646,31 +695,33 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('[ShopContext] Error saving empty products:', e);
     }
-    showToast(language === 'ar' ? 'تم تصفير وحذف جميع المنتجات للبدء من الصفر 🗑️' : 'All products deleted to start from scratch', 'info');
+    showToast(language === 'ar' ? 'تم تصفير وحذف جميع المنتجات من قاعدة البيانات 🗑️' : 'All products deleted from database', 'info');
     try {
       const snapshot = await getDocs(collection(db, 'products'));
       const deletions = snapshot.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletions);
       setLastSyncedAt(new Date());
     } catch (err) {
-      console.warn('[ShopContext] Error deleting firestore products:', err);
+      console.error('[ShopContext] Error deleting firestore products:', err);
     }
   };
 
   const loadDemoProducts = async () => {
-    setProducts(PRODUCTS_DATA);
+    const cleaned = PRODUCTS_DATA.map(p => cleanForFirestore(p));
+    setProducts(cleaned);
     try {
-      localStorage.setItem('rony_store_products', JSON.stringify(PRODUCTS_DATA));
+      localStorage.setItem('rony_store_products', JSON.stringify(cleaned));
     } catch (e) {
       console.warn('[ShopContext] Error saving demo products:', e);
     }
-    showToast(language === 'ar' ? 'تم استيراد الكتالوج التجريبي (18 منتج) بنجاح ✨' : 'Demo products loaded successfully', 'success');
+    showToast(language === 'ar' ? 'تم استيراد الكتالوج وحفظه في قاعدة البيانات الحقيقية ✨' : 'Demo catalog loaded and saved to live Firestore ✨', 'success');
     try {
-      const writes = PRODUCTS_DATA.map(p => setDoc(doc(db, 'products', p.id), p, { merge: true }));
+      const writes = cleaned.map(p => setDoc(doc(db, 'products', p.id), p, { merge: true }));
       await Promise.all(writes);
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] Error loading demo products to firestore:', err);
+      console.error('[ShopContext] Error loading demo products to firestore:', err);
     }
   };
 
@@ -685,111 +736,130 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('[ShopContext] Error saving empty orders:', e);
     }
-    showToast(language === 'ar' ? 'تم تصفير جميع الطلبات والبدء من الصفر' : 'All orders cleared', 'info');
+    showToast(language === 'ar' ? 'تم تصفير جميع الطلبات من قاعدة البيانات' : 'All orders cleared from database', 'info');
     try {
       const snapshot = await getDocs(collection(db, 'orders'));
       const deletions = snapshot.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletions);
       setLastSyncedAt(new Date());
     } catch (err) {
-      console.warn('[ShopContext] Error clearing firestore orders:', err);
+      console.error('[ShopContext] Error clearing firestore orders:', err);
     }
   };
 
   // Branch CRUD with Cloud Write & Real-Time Sync
   const addBranch = async (branch: StoreBranch) => {
-    setBranches(prev => [...prev, branch]);
-    showToast(language === 'ar' ? `تمت إضافة فرع "${branch.nameAr}"` : `Branch added`, 'success');
+    const cleaned = cleanForFirestore(branch);
+    setBranches(prev => [...prev, cleaned]);
+    showToast(language === 'ar' ? `تمت إضافة فرع "${cleaned.nameAr}" في قاعدة البيانات الحقيقية` : `Branch added to live database`, 'success');
     try {
-      await setDoc(doc(db, 'branches', branch.id), branch);
+      await setDoc(doc(db, 'branches', cleaned.id), cleaned, { merge: true });
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] addBranch Firestore write warning:', err);
+      console.error('[ShopContext] addBranch Firestore write error:', err);
     }
   };
 
   const updateBranch = async (updated: StoreBranch) => {
-    setBranches(prev => prev.map(b => b.id === updated.id ? updated : b));
-    showToast(language === 'ar' ? `تم تحديث بيانات "${updated.nameAr}"` : `Branch updated`, 'success');
+    const cleaned = cleanForFirestore(updated);
+    setBranches(prev => prev.map(b => b.id === cleaned.id ? cleaned : b));
+    showToast(language === 'ar' ? `تم تحديث بيانات "${cleaned.nameAr}" في قاعدة البيانات الحقيقية` : `Branch updated in live database`, 'success');
     try {
-      await setDoc(doc(db, 'branches', updated.id), updated, { merge: true });
+      await setDoc(doc(db, 'branches', cleaned.id), cleaned, { merge: true });
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] updateBranch Firestore write warning:', err);
+      console.error('[ShopContext] updateBranch Firestore write error:', err);
     }
   };
 
   const deleteBranch = async (id: string) => {
     setBranches(prev => prev.filter(b => b.id !== id));
-    showToast(language === 'ar' ? 'تم حذف الفرع' : 'Branch removed', 'info');
+    showToast(language === 'ar' ? 'تم حذف الفرع من قاعدة البيانات' : 'Branch removed from database', 'info');
     try {
       await deleteDoc(doc(db, 'branches', id));
       setLastSyncedAt(new Date());
     } catch (err) {
-      console.warn('[ShopContext] deleteBranch Firestore delete warning:', err);
+      console.error('[ShopContext] deleteBranch Firestore delete error:', err);
     }
   };
 
   // Category CRUD with Cloud Write & Real-Time Sync
   const addCategory = async (cat: StoreCategoryItem) => {
-    setCategories(prev => [...prev, cat]);
-    showToast(language === 'ar' ? `تمت إضافة القسم "${cat.nameAr}"` : `Category added`, 'success');
+    const cleaned = cleanForFirestore(cat);
+    setCategories(prev => [...prev, cleaned]);
+    showToast(language === 'ar' ? `تمت إضافة قسم "${cleaned.nameAr}" في قاعدة البيانات الحقيقية` : `Category added to live database`, 'success');
     try {
-      await setDoc(doc(db, 'categories', cat.id), cat);
+      await setDoc(doc(db, 'categories', cleaned.id), cleaned, { merge: true });
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] addCategory Firestore write warning:', err);
+      console.error('[ShopContext] addCategory Firestore write error:', err);
     }
   };
 
   const updateCategory = async (updated: StoreCategoryItem) => {
-    setCategories(prev => prev.map(c => c.id === updated.id ? updated : c));
-    showToast(language === 'ar' ? `تم تحديث بيانات قسم "${updated.nameAr}"` : `Category updated`, 'success');
+    const cleaned = cleanForFirestore(updated);
+    setCategories(prev => prev.map(c => c.id === cleaned.id ? cleaned : c));
+    showToast(language === 'ar' ? `تم تحديث بيانات قسم "${cleaned.nameAr}" في قاعدة البيانات الحقيقية` : `Category updated in live database`, 'success');
     try {
-      await setDoc(doc(db, 'categories', updated.id), updated, { merge: true });
+      await setDoc(doc(db, 'categories', cleaned.id), cleaned, { merge: true });
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] updateCategory Firestore write warning:', err);
+      console.error('[ShopContext] updateCategory Firestore write error:', err);
     }
   };
 
   const deleteCategory = async (id: string) => {
     setCategories(prev => prev.filter(c => c.id !== id));
-    showToast(language === 'ar' ? 'تم حذف القسم' : 'Category removed', 'info');
+    showToast(language === 'ar' ? 'تم حذف القسم من قاعدة البيانات' : 'Category removed from database', 'info');
     try {
       await deleteDoc(doc(db, 'categories', id));
       setLastSyncedAt(new Date());
     } catch (err) {
-      console.warn('[ShopContext] deleteCategory Firestore delete warning:', err);
+      console.error('[ShopContext] deleteCategory Firestore delete error:', err);
     }
   };
 
   // Store Settings CRUD with Cloud Write & Real-Time Sync
   const updateStoreSettings = async (newSettings: Partial<StoreSettings>) => {
-    const merged = { ...storeSettings, ...newSettings };
+    const merged = cleanForFirestore({ ...storeSettings, ...newSettings });
     setStoreSettings(merged);
-    showToast(language === 'ar' ? 'تم حفظ إعدادات ونصوص المتجر وتحديثها على جميع الأجهزة فورياً ✨' : 'Store settings saved & synced to all devices in real-time ✨', 'success');
+    showToast(
+      language === 'ar' 
+        ? 'تم حفظ وتثبيت إعدادات المتجر في قاعدة البيانات الحقيقية فورياً ✨' 
+        : 'Store settings saved to live Firestore database ✨', 
+      'success'
+    );
     try {
       await setDoc(doc(db, 'storeSettings', 'config'), merged, { merge: true });
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] updateStoreSettings Firestore write warning:', err);
+      console.error('[ShopContext] updateStoreSettings Firestore write error:', err);
+      showToast(language === 'ar' ? 'تنبيه: حدث خطأ أثناء الحفظ في قاعدة البيانات' : 'Warning: Error writing settings to Firestore', 'warning');
     }
   };
 
   const resetStoreSettings = async () => {
-    setStoreSettings(DEFAULT_STORE_SETTINGS);
-    setBranches(DEFAULT_BRANCHES);
-    setCategories(DEFAULT_CATEGORIES);
+    const cleanDefaults = cleanForFirestore(DEFAULT_STORE_SETTINGS);
+    const cleanBranches = cleanForFirestore(DEFAULT_BRANCHES);
+    const cleanCats = cleanForFirestore(DEFAULT_CATEGORIES);
+    setStoreSettings(cleanDefaults);
+    setBranches(cleanBranches);
+    setCategories(cleanCats);
     localStorage.removeItem('rony_store_settings');
     localStorage.removeItem('rony_store_branches');
     localStorage.removeItem('rony_store_categories');
-    showToast(language === 'ar' ? 'تمت استعادة إعدادات المتجر الافتراضية' : 'Settings reset to factory defaults', 'info');
+    showToast(language === 'ar' ? 'تمت استعادة إعدادات المتجر الافتراضية في قاعدة البيانات' : 'Settings reset to factory defaults in database', 'info');
     try {
-      await setDoc(doc(db, 'storeSettings', 'config'), DEFAULT_STORE_SETTINGS);
+      await setDoc(doc(db, 'storeSettings', 'config'), cleanDefaults);
       setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (err) {
-      console.warn('[ShopContext] resetStoreSettings Firestore write warning:', err);
+      console.error('[ShopContext] resetStoreSettings Firestore write error:', err);
     }
   };
 
@@ -1102,24 +1172,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+    showToast(language === 'ar' ? `تم تحديث حالة الطلب إلى: ${status} في قاعدة البيانات` : `Order status updated to: ${status} in database`, 'success');
     try {
       const orderRef = doc(db, 'orders', orderId);
-      await setDoc(orderRef, { status }, { merge: true });
+      await setDoc(orderRef, cleanForFirestore({ status }), { merge: true });
+      setLastSyncedAt(new Date());
+      setIsCloudConnected(true);
     } catch (e) {
-      console.warn('[ShopContext] Update order status in Firestore warning:', e);
+      console.error('[ShopContext] Update order status in Firestore error:', e);
     }
-    showToast(language === 'ar' ? `تم تحديث حالة الطلب إلى: ${status}` : `Order status updated to: ${status}`, 'success');
   };
 
   const deleteOrder = async (orderId: string) => {
     setOrders(prev => prev.filter(o => o.id !== orderId));
+    showToast(language === 'ar' ? 'تم حذف الطلب من قاعدة البيانات' : 'Order deleted from database', 'info');
     try {
       const orderRef = doc(db, 'orders', orderId);
       await deleteDoc(orderRef);
+      setLastSyncedAt(new Date());
     } catch (e) {
-      console.warn('[ShopContext] Delete order from Firestore warning:', e);
+      console.error('[ShopContext] Delete order from Firestore error:', e);
     }
-    showToast(language === 'ar' ? 'تم حذف الطلب من السجل' : 'Order deleted from log', 'info');
   };
 
   const createOrder = (orderData: Partial<Order>): Order => {
@@ -1275,11 +1348,12 @@ ${shippingLine}
 
     // Save order to Firebase Firestore
     try {
-      const orderRef = doc(db, 'orders', newOrder.id);
-      setDoc(orderRef, {
+      const cleanOrder = cleanForFirestore({
         ...newOrder,
         userId: auth.currentUser?.uid || null
-      }).catch(err => {
+      });
+      const orderRef = doc(db, 'orders', newOrder.id);
+      setDoc(orderRef, cleanOrder, { merge: true }).catch(err => {
         console.warn('[ShopContext] Firebase Firestore order save background warning:', err);
       });
     } catch (err) {

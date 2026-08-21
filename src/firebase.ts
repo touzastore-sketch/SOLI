@@ -58,16 +58,49 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 // Validate connection to Firestore on boot
-export async function validateFirestoreConnection() {
+export async function validateFirestoreConnection(): Promise<boolean> {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
+    return true;
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn('Firestore client is offline or network is limited.');
     }
+    return false;
   }
 }
 
 validateFirestoreConnection();
 
+/**
+ * Sanitizes any JavaScript object or array recursively before sending to Firestore
+ * Eliminates 'undefined' values which cause Firestore setDoc/updateDoc to throw runtime errors.
+ */
+export function cleanForFirestore<T>(data: T): T {
+  if (data === undefined) {
+    return null as any;
+  }
+  if (data === null || typeof data !== 'object') {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => cleanForFirestore(item)) as any;
+  }
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data as Record<string, any>)) {
+    if (value !== undefined) {
+      cleaned[key] = cleanForFirestore(value);
+    }
+  }
+  return cleaned as T;
+}
+
+export const firestoreDatabaseInfo = {
+  databaseId: firebaseConfig.firestoreDatabaseId,
+  projectId: firebaseConfig.projectId,
+};
+
 export { signInWithPopup, fbSignOut };
+
