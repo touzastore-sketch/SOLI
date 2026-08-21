@@ -1,0 +1,6 @@
+{
+  "name": "RONY STORE - Luxury Intimate Boutique",
+  "description": "Exclusive Egyptian luxury intimate apparel, couple games, and curated self-care boutique featuring discreet packaging, tailored sizing, and seamless bilingual shopping.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,168 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Store item catalog for Rony Store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "nameAr": { "type": "string", "maxLength": 200 },
+        "nameEn": { "type": "string", "maxLength": 200 },
+        "subtitleAr": { "type": "string", "maxLength": 300 },
+        "subtitleEn": { "type": "string", "maxLength": 300 },
+        "category": { "type": "string", "maxLength": 50 },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "isNew": { "type": "boolean" },
+        "isBestSeller": { "type": "boolean" },
+        "isSale": { "type": "boolean" },
+        "inStock": { "type": "boolean" },
+        "images": { "type": "array" },
+        "colors": { "type": "array" },
+        "sizes": { "type": "array" },
+        "descriptionAr": { "type": "string", "maxLength": 2000 },
+        "descriptionEn": { "type": "string", "maxLength": 2000 },
+        "specsAr": { "type": "array" },
+        "specsEn": { "type": "array" },
+        "careGuideAr": { "type": "array" },
+        "careGuideEn": { "type": "array" },
+        "fabricAr": { "type": "string", "maxLength": 100 },
+        "fabricEn": { "type": "string", "maxLength": 100 },
+        "tagAr": { "type": "string", "maxLength": 100 },
+        "tagEn": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "nameAr", "nameEn", "category", "price", "inStock", "images"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Store category definition with banners and localized texts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "nameAr": { "type": "string", "maxLength": 150 },
+        "nameEn": { "type": "string", "maxLength": 150 },
+        "subtitleAr": { "type": "string", "maxLength": 200 },
+        "subtitleEn": { "type": "string", "maxLength": 200 },
+        "descAr": { "type": "string", "maxLength": 1000 },
+        "descEn": { "type": "string", "maxLength": 1000 },
+        "image": { "type": "string", "maxLength": 1000 },
+        "badgeAr": { "type": "string", "maxLength": 50 },
+        "badgeEn": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "nameAr", "nameEn"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 64 },
+        "date": { "type": "string", "maxLength": 64 },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "shippingFee": { "type": "number" },
+        "discount": { "type": "number" },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["placed", "processing", "shipped", "out_for_delivery", "delivered"] },
+        "paymentMethod": { "type": "string", "enum": ["cod", "card", "vodafone_cash"] },
+        "shippingMethod": { "type": "string", "enum": ["standard", "express"] },
+        "shippingAddress": { "type": "object" },
+        "trackingSteps": { "type": "array" },
+        "isDiscreetPackaging": { "type": "boolean" },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "whatsappUrl": { "type": "string", "maxLength": 2000 },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "orderNumber", "items", "subtotal", "total", "status", "paymentMethod", "shippingAddress"]
+    },
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Site-wide configuration and promotional details",
+      "type": "object",
+      "properties": {
+        "storeNameAr": { "type": "string", "maxLength": 100 },
+        "storeNameEn": { "type": "string", "maxLength": 100 },
+        "primaryPhone": { "type": "string", "maxLength": 50 },
+        "whatsappOrder1": { "type": "string", "maxLength": 50 },
+        "whatsappOrder2": { "type": "string", "maxLength": 50 },
+        "facebookUrl": { "type": "string", "maxLength": 500 },
+        "instagramUrl": { "type": "string", "maxLength": 500 },
+        "tiktokUrl": { "type": "string", "maxLength": 500 },
+        "telegramUrl": { "type": "string", "maxLength": 500 },
+        "announcementTextAr": { "type": "string", "maxLength": 500 },
+        "announcementTextEn": { "type": "string", "maxLength": 500 },
+        "announcementActive": { "type": "boolean" },
+        "standardShippingFee": { "type": "number" },
+        "freeShippingThreshold": { "type": "number" },
+        "activePromoCode": { "type": "string", "maxLength": 50 },
+        "activeDiscountPercent": { "type": "number" },
+        "discreetPackagingNoteAr": { "type": "string", "maxLength": 500 },
+        "discreetPackagingNoteEn": { "type": "string", "maxLength": 500 },
+        "adminPin": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["storeNameAr", "storeNameEn", "primaryPhone", "whatsappOrder1"]
+    },
+    "StoreBranch": {
+      "title": "StoreBranch",
+      "description": "Physical branch location of Rony Store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "nameAr": { "type": "string", "maxLength": 100 },
+        "nameEn": { "type": "string", "maxLength": 100 },
+        "cityAr": { "type": "string", "maxLength": 100 },
+        "cityEn": { "type": "string", "maxLength": 100 },
+        "addressAr": { "type": "string", "maxLength": 300 },
+        "addressEn": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "whatsapp": { "type": "string", "maxLength": 50 },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "nameAr", "nameEn", "cityAr", "cityEn", "addressAr", "addressEn", "phone", "whatsapp", "isActive"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered user account profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "tier": { "type": "string", "maxLength": 50 },
+        "points": { "type": "number" },
+        "defaultAddress": { "type": "object" }
+      },
+      "required": ["id", "email"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Catalog of luxury lingerie, couple games, pedicure care and enhancers"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Store categories showcase and banners"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Store customer orders and WhatsApp checkout tracking"
+    },
+    "/storeSettings/{settingId}": {
+      "schema": "StoreSettings",
+      "description": "Storewide settings and branding texts"
+    },
+    "/branches/{branchId}": {
+      "schema": "StoreBranch",
+      "description": "Store physical branches locations and contact details"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Customer accounts and shipping profiles"
+    }
+  }
+}

@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'drd16386@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Connection testing
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // Admins collection
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Products catalog: real-time synchronized across all devices
+    match /products/{productId} {
+      allow get, list: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Categories catalog: real-time synchronized across all devices
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Store settings: real-time synchronized across all devices
+    match /storeSettings/{settingId} {
+      allow get, list: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Store branches: real-time synchronized across all devices
+    match /branches/{branchId} {
+      allow get, list: if true;
+      allow create, update, delete: if true;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow get, list: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // Customer orders: real-time synchronized across all devices
+    match /orders/{orderId} {
+      allow get, list: if true;
+      allow create, update, delete: if true;
+    }
+  }
+}
